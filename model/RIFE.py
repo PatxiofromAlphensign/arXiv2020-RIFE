@@ -9,7 +9,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from model.IFNet import *
 import torch.nn.functional as F
 from model.loss import *
-
+import os
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -165,9 +165,13 @@ class Model:
                 for k, v in param.items()
                 if "module." in k
             }
+        self.path = '{}/flownet.pkl'.format(path)
         if rank == 0:
+            if not os.path.exists(self.path):
+                return self.flownet.load_state_dict 
+
             self.flownet.load_state_dict(
-                convert(torch.load('{}/flownet.pkl'.format(path), map_location=device)))
+                convert(torch.load(self.path, map_location=device)))
             self.contextnet.load_state_dict(
                 convert(torch.load('{}/contextnet.pkl'.format(path), map_location=device)))
             self.fusionnet.load_state_dict(

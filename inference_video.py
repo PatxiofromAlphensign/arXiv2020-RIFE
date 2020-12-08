@@ -77,26 +77,29 @@ model.load_model('./train_log')
 model.eval()
 model.device()
 
-videoCapture = cv2.VideoCapture(args.video)
-fps = videoCapture.get(cv2.CAP_PROP_FPS)
-tot_frame = videoCapture.get(cv2.CAP_PROP_FRAME_COUNT)
-videoCapture.release()
-if args.fps is None:
-    fpsNotAssigned = True
-    args.fps = fps * args.exp
-else:
-    fpsNotAssigned = False
-videogen = skvideo.io.vreader(args.video)
-lastframe = next(videogen)
-h, w, _ = lastframe.shape
-fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-if args.png:
-    if not os.path.exists('vid_out'):
-        os.mkdir('vid_out')
-else:
-    video_path_wo_ext, ext = os.path.splitext(args.video)
-    vid_out = cv2.VideoWriter('{}_{}X_{}fps.{}'.format(video_path_wo_ext, args.exp, int(np.round(args.fps)), args.ext), fourcc, args.fps, (w, h))
-    
+
+def captureVid(vids):
+    global  videoCapture , fps, tot_frame, videoCapture, lastframe, h, w, fourcc
+    videoCapture = cv2.VideoCapture(vids)
+    fps = videoCapture.get(cv2.CAP_PROP_FPS)
+    tot_frame = videoCapture.get(cv2.CAP_PROP_FRAME_COUNT)
+    videoCapture.release()
+    if args.fps is None:
+        fpsNotAssigned = True
+        args.fps = fps * args.exp
+    else:
+        fpsNotAssigned = False
+    videogen = skvideo.io.vreader(args.video)
+    lastframe = next(videogen)
+    h, w, _ = lastframe.shape
+    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    if args.png:
+        if not os.path.exists('vid_out'):
+            os.mkdir('vid_out')
+    else:
+        video_path_wo_ext, ext = os.path.splitext(args.video)
+        vid_out = cv2.VideoWriter('{}_{}X_{}fps.{}'.format(video_path_wo_ext, args.exp, int(np.round(args.fps)), args.ext), fourcc, args.fps, (w, h))
+        
 def clear_buffer(user_args, buffer):
     cnt = 0
     while True:
@@ -109,6 +112,8 @@ def clear_buffer(user_args, buffer):
         else:
             vid_out.write(item[:, :, ::-1])
             
+captureVid(args.video)
+
 if args.montage:
     left = w // 4
     w = w // 2
@@ -178,5 +183,6 @@ if not vid_out is None:
 
 # move audio to new video file if appropriate
 if args.png == False and fpsNotAssigned == True:
-    outputVideoFileName = '{}_{}X_{}fps.{}'.format(video_path_wo_ext, args.exp, int(np.round(args.fps)), args.ext)
-    transferAudio(video_path_wo_ext + "." + args.ext, outputVideoFileName)
+    pass
+    #outputVideoFileName = '{}_{}X_{}fps.{}'.format(video_path_wo_ext, args.exp, int(np.round(args.fps)), args.ext)
+    #transferAudio(video_path_wo_ext + "." + args.ext, outputVideoFileName)

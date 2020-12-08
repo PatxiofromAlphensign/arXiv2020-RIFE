@@ -2,7 +2,7 @@ import cv2
 import ast
 import torch
 import ujson as json
-import nori2 as nori
+#import nori2 as nori
 import numpy as np
 import random
 # import imgaug.augmenters as iaa
@@ -10,13 +10,16 @@ from torch.utils.data import DataLoader, Dataset
 
 cv2.setNumThreads(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 class VimeoDataset(Dataset):
-    def __init__(self, dataset_name, batch_size=32):
+    def __init__(self, dataset_name, batch_size=32, **kargs):
         self.batch_size = batch_size
         self.path = 'XXX'
         self.dataset_name = dataset_name
-        self.load_data()
-        self.nf = nori.Fetcher()
+        #self.load_data()
+        if kargs["loaddata"]:
+            self.__load_data()
+        #self.nf = nori.Fetcher()
         self.h = 256
         self.w = 448
         xx = np.arange(0, self.w).reshape(1,-1).repeat(self.h,0)
@@ -26,10 +29,31 @@ class VimeoDataset(Dataset):
     def __len__(self):
         return len(self.meta_data)
 
+    def _load_data(self):
+        # load data as test split, train split
+        self.train_data, self.flow_data, self.val_data = ([],[],[])
+
     def load_data(self):
-        self.train_data = XXX
-        self.flow_data = XXX
-        self.val_data = XXX
+        self.train_data = []
+        self.flow_data = []
+        self.val_data = []
+        for i in range(100):
+            f = np.load('dataset/{}.npz'.format(i))
+            if i < 80:
+                self.train_data.append(f['i0i1gt'])
+                self.flow_data.append(f['ft0ft1'])
+            else:
+                self.val_data.append(f['i0i1gt'])
+        if self.dataset_name == 'train':
+            self.meta_data = self.train_data
+        else:
+            self.meta_data = self.val_data
+        self.nr_sample = len(self.meta_data)        
+
+   
+
+    def __load_data(self):
+        self._load_data()
         if self.dataset_name == 'train':
             self.meta_data = self.train_data
         else:

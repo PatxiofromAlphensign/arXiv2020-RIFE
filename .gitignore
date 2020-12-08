@@ -1,10 +1,4 @@
-*.pyc
-*.py~
-*.py#
-
-*.pkl
-output/*
-*.mp4
-
-test/
-.idea/
+.idea/dataset_WIP.py
+inference_img.py
+inference_video.py
+model/RIFE.py
