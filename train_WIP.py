@@ -5,31 +5,33 @@ import time
 import torch
 import numpy as np
 import random
-import argparse
-import torch.distributed as dist
+import argparse 
+import torch.distributed as dist #os.environ["RANK"] = "1" 
 
-torch.distributed.init_process_group(backend="nccl", world_size=4)
-local_rank = torch.distributed.get_rank()
-torch.cuda.set_device(local_rank)
-device = torch.device("cuda", local_rank)
-seed = 1234
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-torch.backends.cudnn.benchmark = True
+def envsetup(args):
+    torch.distributed.init_process_group(backend="nccl")
+    global local_rank, log_path
+    
+    
+    local_rank = torch.distributed.get_rank()
 
-from model import Model
-from dataset import *
+    log_path = 'train_log'
+   
+    torch.cuda.set_device(local_rank)
+    device = torch.device("cuda", local_rank)
+    seed = 1234
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+from model.RIFE import Model
+from dataset_WIP import *
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
-from util import *
+#from util import *
 from torch.utils.data.distributed import DistributedSampler
-
-log_path = 'train_log'
-if local_rank == 0:
-    writer = SummaryWriter(log_path + '/train')
-    writer_val = SummaryWriter(log_path + '/validate')
 
 def get_learning_rate(step):
     if step < 2000:
@@ -41,11 +43,11 @@ def get_learning_rate(step):
 def train(model):
     step = 0
     nr_eval = 0
-    dataset = VimeoDataset('train')
+    dataset = VimeoDataset('train', loaddata=True)
     sampler = DistributedSampler(dataset)
     train_data = DataLoader(dataset, batch_size=args.batch_size, num_workers=8, pin_memory=True, drop_last=True, sampler=sampler)
     args.step_per_epoch = train_data.__len__()
-    dataset_val = VimeoDataset('validation')
+    dataset_val = VimeoDataset('validation', loaddata=True)
     val_data = DataLoader(dataset_val, batch_size=16, pin_memory=True, num_workers=8)
     evaluate(model, val_data, nr_eval)
     model.save_model(log_path, local_rank)
@@ -67,12 +69,12 @@ def train(model):
             pred, merged_img, flow, loss_l1, loss_flow, loss_cons, loss_ter, flow_mask = model.update(imgs, gt, learning_rate, mul, True, flow_gt)
             train_time_interval = time.time() - time_stamp
             time_stamp = time.time()
-            if step % 100 == 1 and local_rank == 0:
-                writer.add_scalar('learning_rate', learning_rate, step)
-                writer.add_scalar('loss_l1', loss_l1, step)
-                writer.add_scalar('loss_flow', loss_flow, step)
-                writer.add_scalar('loss_cons', loss_cons, step)
-                writer.add_scalar('loss_ter', loss_ter, step)
+            #if step % 100 == 1 and local_rank == 0:
+            writer.add_scalar('learning_rate', learning_rate, step) 
+            writer.add_scalar('loss_l1', loss_l1, step)
+            writer.add_scalar('loss_flow', loss_flow, step)
+            writer.add_scalar('loss_cons', loss_cons, step)
+            writer.add_scalar('loss_ter', loss_ter, step)
             if step % 1000 == 1 and local_rank == 0:
                 gt = (gt.permute(0, 2, 3, 1).detach().cpu().numpy() * 255).astype('uint8')
                 pred = (pred.permute(0, 2, 3, 1).detach().cpu().numpy() * 255).astype('uint8')
@@ -121,7 +123,7 @@ def evaluate(model, val_data, nr_eval):
         gt = (gt.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')
         pred = (pred.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')
         merged_img = (merged_img.permute(0, 2, 3, 1).cpu().numpy() * 255).astype('uint8')
-        flow = flow.permute(0, 2, 3, 1).cpu().numpy()
+        flow = flow.permute(0, 2, 3, 1).cpu().numpy() 
         if i == 0 and local_rank == 0:
             for j in range(5):
                 imgs = np.concatenate((merged_img[i], pred[i], gt[i]), 1)[:, :, ::-1]
@@ -136,13 +138,24 @@ def evaluate(model, val_data, nr_eval):
         writer_val.add_scalar('loss_cons', np.array(loss_cons_list).mean(), nr_eval)
         writer_val.add_scalar('loss_ter', np.array(loss_ter_list).mean(), nr_eval)
         writer_val.add_scalar('psnr', np.array(psnr_list).mean(), nr_eval)
-        
+        torch.backends.cudnn.benchmark = True
+
+
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description='slomo')
     parser.add_argument('--epoch', default=300, type=int)
     parser.add_argument('--batch_size', default=16, type=int, help='minibatch size')
     parser.add_argument('--local_rank', default=0, type=int, help='local rank')
+
+    parser.add_argument('--nproc', default=1,dest="nproc",type=int, help='nproc')
     args = parser.parse_args()
+    envsetup(args)
+    if local_rank == 0:
+        writer = SummaryWriter(log_path + '/train')
+        writer_val = SummaryWriter(log_path + '/validate')
+
+
     model = Model(args.local_rank)
     train(model)
+    #fixargs()
         
